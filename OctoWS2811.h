@@ -21,17 +21,15 @@
     THE SOFTWARE.
 */
 
-#ifndef OctoWS2811_h
-#define OctoWS2811_h
 
 #include <Arduino.h>
 #include "DMAChannel.h"
 
-#if TEENSYDUINO < 121
-#error "Teensyduino version 1.21 or later is required to compile this library."
+#if TEENSYDUINO < 120
+#error "Teensyduino version 1.20 or later is required to compile this library."
 #endif
 #ifdef __AVR__
-#error "OctoWS2811 does not work with Teensy 2.0 or Teensy++ 2.0."
+#error "The Audio Library only works with Teensy 3.X.  Teensy 2.0 is unsupported."
 #endif
 
 #define WS2811_RGB	0	// The WS2811 datasheet documents this way
@@ -46,18 +44,21 @@
 class OctoWS2811 {
 public:
 	OctoWS2811(uint32_t numPerStrip, void *frameBuf, void *drawBuf, uint8_t config = WS2811_GRB);
-	void begin(void);
+	void begin(char dataport, uint32_t datadirectionregister); // set dataport to 'A'...'E', 'D'=default. Set Bits for every desired output in datadirectionregister. I.e. 0xFF to use all 8 pins (Port.0-Port.7)
+                                                             // The other unused pins can be used as inputs.
 
 	void setPixel(uint32_t num, int color);
 	void setPixel(uint32_t num, uint8_t red, uint8_t green, uint8_t blue) {
 		setPixel(num, color(red, green, blue));
 	}
 	int getPixel(uint32_t num);
+  void clear();
+  void white();
 
 	void show(void);
 	int busy(void);
 
-	int numPixels(void) {
+	unsigned int numPixels(void) {
 		return stripLen * 8;
 	}
 	int color(uint8_t red, uint8_t green, uint8_t blue) {
@@ -74,4 +75,3 @@ private:
 	static void isr(void);
 };
 
-#endif
