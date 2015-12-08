@@ -232,6 +232,15 @@ void OctoWS2811::begin(char dataport, uint32_t datadirectionregister)
 	dma1.TCD->SLAST = 0;
   switch(dataport)
   {
+    case 'A':
+      dma1.TCD->DADDR = &GPIOA_PCOR;
+      break;
+    case 'B':
+      dma1.TCD->DADDR = &GPIOB_PCOR;
+      break;
+    case 'C':
+      dma1.TCD->DADDR = &GPIOC_PCOR;
+      break;
     case 'E':
       dma1.TCD->DADDR = &GPIOE_PSOR;
       break;
@@ -253,6 +262,15 @@ void OctoWS2811::begin(char dataport, uint32_t datadirectionregister)
 	dma2.TCD->SLAST = -bufsize;
   switch(dataport)
   {
+    case 'A':
+      dma2.TCD->DADDR = &GPIOA_PCOR;
+      break;
+    case 'B':
+      dma2.TCD->DADDR = &GPIOB_PCOR;
+      break;
+    case 'C':
+      dma2.TCD->DADDR = &GPIOC_PCOR;
+      break;
     case 'E':
       dma2.TCD->DADDR = &GPIOE_PDOR;
       break;
@@ -274,6 +292,15 @@ void OctoWS2811::begin(char dataport, uint32_t datadirectionregister)
 	dma3.TCD->SLAST = 0;
   switch(dataport)
   {
+    case 'A':
+      dma3.TCD->DADDR = &GPIOA_PCOR;
+      break;
+    case 'B':
+      dma3.TCD->DADDR = &GPIOB_PCOR;
+      break;
+    case 'C':
+      dma3.TCD->DADDR = &GPIOC_PCOR;
+      break;
     case 'E':
       dma3.TCD->DADDR = &GPIOE_PCOR;
       break;
