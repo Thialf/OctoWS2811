@@ -48,9 +48,10 @@ int drawingMemory[ledsPerStrip*6];
 const int config = WS2811_GRB | WS2811_800kHz;
 
 OctoWS2811 leds(ledsPerStrip, displayMemory, drawingMemory, config);
+void colorWipe(int color, int wait);
 
 void setup() {
-  leds.begin();
+  leds.begin('D', 0xFF);
   leds.show();
 }
 
@@ -79,7 +80,7 @@ void loop() {
 
 void colorWipe(int color, int wait)
 {
-  for (int i=0; i < leds.numPixels(); i++) {
+  for (unsigned int i=0; i < leds.numPixels(); i++) {
     leds.setPixel(i, color);
     leds.show();
     delayMicroseconds(wait);
