@@ -61,8 +61,8 @@ OctoWS2811::OctoWS2811(uint32_t numPerStrip, void *frameBuf, void *drawBuf, uint
 // real LED strips, please contact paul@pjrc.com.  Please do not email based only
 // on reading the datasheets and purely theoretical analysis.
 // Fastled: T0H=280ns, T1H=580ns, all=1.33µs
-#define WS2811_TIMING_T0H  60 //60
-#define WS2811_TIMING_T1H  176 //176
+#define WS2811_TIMING_T0H  60
+#define WS2811_TIMING_T1H  176
 
 // Discussion about timing and flicker & color shift issues:
 // http://forum.pjrc.com/threads/23877-WS2812B-compatible-with-OctoWS2811-library?p=38190&viewfull=1#post38190
@@ -70,8 +70,11 @@ OctoWS2811::OctoWS2811(uint32_t numPerStrip, void *frameBuf, void *drawBuf, uint
 static uint8_t analog_write_res = 8;
 
 // FTM is clocked by the bus clock, 48 MHz
+#ifndef KINETISK
+#error This is for Teensy 3.x only. TeensyLC is somehow not working, despite it compiles well. It gets stucked at setting FTM0_CNTIN, but even without it, it's not working.
+#endif
 
-#if F_BUS < 48000000
+#if F_BUS < 48000000 && defined (KINETISK)
 #error this OctoWS2811 is not working with F_BUS lower than 48MHz
 #endif
 
@@ -92,10 +95,11 @@ void setFTM_Timer(uint8_t ch1, uint8_t ch2, float frequency)
 	if (mod > 65535) mod = 65535;
 
   FTM0_SC = 0; // stop FTM until setting of registers are ready
+
   FTM0_CNTIN = 0; // initial value for counter. CNT will be set to this value, if any value is written to FTMx_CNT 
   FTM0_CNT = 0;
   FTM0_MOD = mod;
-  
+
   // I don't know why, but the following leads to a very short first pulse. Shifting the compare values to the end looks much better
   // uint32_t cval;
 	// FTM0_C0V = 1;  // 0 is not working -> add 1 to every compare value.
@@ -114,7 +118,6 @@ void setFTM_Timer(uint8_t ch1, uint8_t ch2, float frequency)
   FTM0_C0SC = FTM_CSC_DMA | FTM_CSC_CHIE | 0x28;
   FTM0_C1SC = FTM_CSC_DMA | FTM_CSC_CHIE | 0x28;
   FTM0_C2SC = FTM_CSC_DMA | FTM_CSC_CHIE | 0x28;
-    
   
   FTM0_SC = FTM_SC_CLKS(ftmClockSource) | FTM_SC_PS(prescale);	//Use ftmClockSource instead of 1. Start FTM-Timer.
   //with 96MHz Teensy: prescale 0, mod 59, ftmClockSource 1, cval1 14, cval2 41
@@ -224,114 +227,149 @@ void OctoWS2811::begin(char dataport, uint32_t datadirectionregister)
 	// // pin 4 triggers DMA(port A) on falling edge of high duty waveform
 	// CORE_PIN4_CONFIG = PORT_PCR_IRQC(2)|PORT_PCR_MUX(3);
 
-	// DMA channel #1 sets WS2811 high at the beginning of each cycle
-	dma1.TCD->SADDR = &ones;
-	dma1.TCD->SOFF = 0;
-	dma1.TCD->ATTR = DMA_TCD_ATTR_SSIZE(0) | DMA_TCD_ATTR_DSIZE(0);
-	dma1.TCD->NBYTES_MLNO = 1;
-	dma1.TCD->SLAST = 0;
-  switch(dataport)
-  {
-    case 'A':
-      dma1.TCD->DADDR = &GPIOA_PCOR;
-      break;
-    case 'B':
-      dma1.TCD->DADDR = &GPIOB_PCOR;
-      break;
-    case 'C':
-      dma1.TCD->DADDR = &GPIOC_PCOR;
-      break;
-    case 'E':
-      dma1.TCD->DADDR = &GPIOE_PSOR;
-      break;
-    default: // default == D
-      dma1.TCD->DADDR = &GPIOD_PSOR;
-      break;
-  }
-	dma1.TCD->DOFF = 0;
-	dma1.TCD->CITER_ELINKNO = bufsize;
-	dma1.TCD->DLASTSGA = 0;
-	dma1.TCD->CSR = DMA_TCD_CSR_DREQ;
-	dma1.TCD->BITER_ELINKNO = bufsize;
+  // DMA channel #1 sets WS2811 high at the beginning of each cycle
+  dma1.source(ones);
+  dma1.transferSize(1);
+  dma1.transferCount(bufsize);
+  dma1.disableOnCompletion();
 
-	// DMA channel #2 writes the pixel data at 20% of the cycle
-	dma2.TCD->SADDR = frameBuffer;
-	dma2.TCD->SOFF = 1;
-	dma2.TCD->ATTR = DMA_TCD_ATTR_SSIZE(0) | DMA_TCD_ATTR_DSIZE(0);
-	dma2.TCD->NBYTES_MLNO = 1;
-	dma2.TCD->SLAST = -bufsize;
+  // dma1.TCD->SADDR = &ones;
+  // dma1.TCD->SOFF = 0;
+  // dma1.TCD->ATTR = DMA_TCD_ATTR_SSIZE(0) | DMA_TCD_ATTR_DSIZE(0);
+  // dma1.TCD->NBYTES_MLNO = 1;
+  // dma1.TCD->SLAST = 0;
   switch(dataport)
   {
     case 'A':
-      dma2.TCD->DADDR = &GPIOA_PCOR;
+      // dma1.TCD->DADDR = &GPIOA_PSOR;
+      dma1.destination(*(volatile unsigned char *)&GPIOA_PSOR);
       break;
     case 'B':
-      dma2.TCD->DADDR = &GPIOB_PCOR;
+      // dma1.TCD->DADDR = &GPIOB_PSOR;
+      dma1.destination(*(volatile unsigned char *)&GPIOB_PSOR);
       break;
     case 'C':
-      dma2.TCD->DADDR = &GPIOC_PCOR;
+      // dma1.TCD->DADDR = &GPIOC_PSOR;
+      dma1.destination(*(volatile unsigned char *)&GPIOC_PSOR);
       break;
     case 'E':
-      dma2.TCD->DADDR = &GPIOE_PDOR;
+      // dma1.TCD->DADDR = &GPIOE_PSOR;
+      dma1.destination(*(volatile unsigned char *)&GPIOE_PSOR);
       break;
     default: // default == D
-      dma2.TCD->DADDR = &GPIOD_PDOR;
+       // dma1.TCD->DADDR = &GPIOD_PSOR;
+      dma1.destination(*(volatile unsigned char *)&GPIOD_PCOR);
       break;
   }
-	dma2.TCD->DOFF = 0;
-	dma2.TCD->CITER_ELINKNO = bufsize;
-	dma2.TCD->DLASTSGA = 0;
-	dma2.TCD->CSR = DMA_TCD_CSR_DREQ;
-	dma2.TCD->BITER_ELINKNO = bufsize;
+  // dma1.TCD->DOFF = 0;
+  // dma1.TCD->CITER_ELINKNO = bufsize;
+  // dma1.TCD->DLASTSGA = 0;
+  // dma1.TCD->CSR = DMA_TCD_CSR_DREQ;
+  // dma1.TCD->BITER_ELINKNO = bufsize;
 
-	// DMA channel #3 clear all the pins low at 48% of the cycle
-	dma3.TCD->SADDR = &ones;
-	dma3.TCD->SOFF = 0;
-	dma3.TCD->ATTR = DMA_TCD_ATTR_SSIZE(0) | DMA_TCD_ATTR_DSIZE(0);
-	dma3.TCD->NBYTES_MLNO = 1;
-	dma3.TCD->SLAST = 0;
+  // DMA channel #2 writes the pixel data at 20% of the cycle
+  dma2.sourceBuffer((uint8_t *)frameBuffer, bufsize);
+  dma2.transferSize(1);
+  dma2.transferCount(bufsize);
+  dma2.disableOnCompletion();
+  // dma2.TCD->SADDR = frameBuffer;
+  // dma2.TCD->SOFF = 1;
+  // dma2.TCD->ATTR = DMA_TCD_ATTR_SSIZE(0) | DMA_TCD_ATTR_DSIZE(0);
+  // dma2.TCD->NBYTES_MLNO = 1;
+  // dma2.TCD->SLAST = -bufsize;
   switch(dataport)
   {
     case 'A':
-      dma3.TCD->DADDR = &GPIOA_PCOR;
+      // dma2.TCD->DADDR = &GPIOA_PDOR;
+      dma2.destination(*(volatile unsigned char *)&GPIOA_PDOR);
       break;
     case 'B':
-      dma3.TCD->DADDR = &GPIOB_PCOR;
+      // dma2.TCD->DADDR = &GPIOB_PDOR;
+      dma2.destination(*(volatile unsigned char *)&GPIOB_PDOR);
       break;
     case 'C':
-      dma3.TCD->DADDR = &GPIOC_PCOR;
+      // dma2.TCD->DADDR = &GPIOC_PDOR;
+      dma2.destination(*(volatile unsigned char *)&GPIOC_PDOR);
       break;
     case 'E':
-      dma3.TCD->DADDR = &GPIOE_PCOR;
+      // dma2.TCD->DADDR = &GPIOE_PDOR;
+      dma2.destination(*(volatile unsigned char *)&GPIOE_PDOR);
       break;
     default: // default == D
-      dma3.TCD->DADDR = &GPIOD_PCOR;
+       // dma2.TCD->DADDR = &GPIOD_PDOR;
+      dma2.destination(*(volatile unsigned char *)&GPIOD_PDOR);
       break;
   }
-	dma3.TCD->DOFF = 0;
-	dma3.TCD->CITER_ELINKNO = bufsize;
-	dma3.TCD->DLASTSGA = 0;
-	dma3.TCD->CSR = DMA_TCD_CSR_DREQ | DMA_TCD_CSR_INTMAJOR;
-	dma3.TCD->BITER_ELINKNO = bufsize;
+  // dma2.TCD->DOFF = 0;
+  // dma2.TCD->CITER_ELINKNO = bufsize;
+  // dma2.TCD->DLASTSGA = 0;
+  // dma2.TCD->CSR = DMA_TCD_CSR_DREQ;
+  // dma2.TCD->BITER_ELINKNO = bufsize;
+
+  // DMA channel #3 clear all the pins low at 48% of the cycle
+  dma3.source(ones);
+  dma3.transferSize(1);
+  dma3.transferCount(bufsize);
+  dma3.disableOnCompletion();
+  dma3.interruptAtCompletion();
+  // dma3.TCD->SADDR = &ones;
+  // dma3.TCD->SOFF = 0;
+  // dma3.TCD->ATTR = DMA_TCD_ATTR_SSIZE(0) | DMA_TCD_ATTR_DSIZE(0);
+  // dma3.TCD->NBYTES_MLNO = 1;
+  // dma3.TCD->SLAST = 0;
+  switch(dataport)
+  {
+    case 'A':
+      // dma3.TCD->DADDR = &GPIOA_PCOR;
+      dma3.destination(*(volatile unsigned char *)&GPIOA_PCOR);
+      break;
+    case 'B':
+      // dma3.TCD->DADDR = &GPIOB_PCOR;
+      dma3.destination(*(volatile unsigned char *)&GPIOB_PCOR);
+      break;
+    case 'C':
+      // dma3.TCD->DADDR = &GPIOC_PCOR;
+      dma3.destination(*(volatile unsigned char *)&GPIOC_PCOR);
+      break;
+    case 'E':
+      // dma3.TCD->DADDR = &GPIOE_PCOR;
+      dma3.destination(*(volatile unsigned char *)&GPIOE_PCOR);
+      break;
+    default: // default == D
+       // dma3.TCD->DADDR = &GPIOD_PCOR;
+     dma3.destination(*(volatile unsigned char *)&GPIOD_PCOR);
+      break;
+  }
+  // dma3.TCD->DOFF = 0;
+  // dma3.TCD->CITER_ELINKNO = bufsize;
+  // dma3.TCD->DLASTSGA = 0;
+  // dma3.TCD->CSR = DMA_TCD_CSR_DREQ | DMA_TCD_CSR_INTMAJOR;
+  // dma3.TCD->BITER_ELINKNO = bufsize;
 
 #ifdef __MK20DX256__
 	MCM_CR = MCM_CR_SRAMLAP(1) | MCM_CR_SRAMUAP(0);
 	AXBS_PRS0 = 0x1032;
 #endif
 
-	// route the edge detect interrupts to trigger the 3 channels
-	dma1.triggerAtHardwareEvent(DMAMUX_SOURCE_FTM0_CH0);
-	dma2.triggerAtHardwareEvent(DMAMUX_SOURCE_FTM0_CH1);
-	dma3.triggerAtHardwareEvent(DMAMUX_SOURCE_FTM0_CH2);
+  // route the edge detect interrupts to trigger the 3 channels
+  #ifdef KINETISK
+  dma1.triggerAtHardwareEvent(DMAMUX_SOURCE_FTM0_CH0);
+  dma2.triggerAtHardwareEvent(DMAMUX_SOURCE_FTM0_CH1);
+  dma3.triggerAtHardwareEvent(DMAMUX_SOURCE_FTM0_CH2);
+  #endif
+  #ifdef KINETISL
+  dma1.triggerAtHardwareEvent(DMAMUX_SOURCE_TPM0_CH0);
+  dma2.triggerAtHardwareEvent(DMAMUX_SOURCE_TPM0_CH1);
+  dma3.triggerAtHardwareEvent(DMAMUX_SOURCE_TPM0_CH2);
+  #endif
 
-	// enable a done interrupts when channel #3 completes
-	dma3.attachInterrupt(isr);
-	//pinMode(1, OUTPUT); // testing: oscilloscope trigger
+  // enable a done interrupts when channel #3 completes
+  dma3.attachInterrupt(isr);
+  //pinMode(1, OUTPUT); // testing: oscilloscope trigger
 }
 
 void OctoWS2811::isr(void)
 {
-	
 	update_completed_at = micros();
   dma3.clearInterrupt();
 	update_in_progress = 0;
@@ -387,6 +425,7 @@ void OctoWS2811::show(void)
 	dma1.enable();
 	dma2.enable();		// enable all 3 DMA channels
 	dma3.enable();
+  
 	//interrupts();
 	//digitalWriteFast(1, LOW);
 	// wait for WS2811 reset
@@ -474,3 +513,4 @@ int OctoWS2811::getPixel(uint32_t num)
 	}
 	return color;
 }
+
