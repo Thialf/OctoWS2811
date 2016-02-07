@@ -258,7 +258,7 @@ void OctoWS2811::begin(char dataport, uint32_t datadirectionregister)
       break;
     default: // default == D
        // dma1.TCD->DADDR = &GPIOD_PSOR;
-      dma1.destination(*(volatile unsigned char *)&GPIOD_PCOR);
+      dma1.destination(*(volatile unsigned char *)&GPIOD_PSOR);
       break;
   }
   // dma1.TCD->DOFF = 0;
@@ -337,7 +337,7 @@ void OctoWS2811::begin(char dataport, uint32_t datadirectionregister)
       break;
     default: // default == D
        // dma3.TCD->DADDR = &GPIOD_PCOR;
-     dma3.destination(*(volatile unsigned char *)&GPIOD_PCOR);
+      dma3.destination(*(volatile unsigned char *)&GPIOD_PCOR);
       break;
   }
   // dma3.TCD->DOFF = 0;
